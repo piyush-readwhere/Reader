@@ -136,8 +136,169 @@
 
 - (void)showDocumentPage:(NSInteger)page
 {
-	if (page != currentPage) // Only if different
-	{
+      UIInterfaceOrientation orientation= [[UIApplication sharedApplication] statusBarOrientation];
+    if(UIInterfaceOrientationIsLandscape(orientation)){
+        if(page%2==0){
+            page=page-1;
+        }
+        else{
+            page=page;
+        }
+        
+        NSInteger minValue; NSInteger maxValue;
+             NSInteger maxPage;
+        if([document.pageCount integerValue]%2==0){
+            maxPage = [document.pageCount integerValue]-1;
+        }
+        else{
+            maxPage=[document.pageCount integerValue];
+        }
+
+		
+        
+        NSInteger minPage = 1;
+        
+        if ((page < minPage) || (page > maxPage)) return;
+        
+        if (maxPage <= PAGING_VIEWS) // Few pages
+        {
+            minValue = minPage;
+            maxValue = maxPage;
+        }
+        else // Handle more pages
+        {
+            
+            
+                          
+                minValue=page-2;
+                maxValue=page+2;
+                if(minValue<minPage){
+                    minValue=minValue+2;
+                    maxValue=maxValue+2;
+                }
+                if (maxValue > maxPage)
+                {
+                    minValue= (minValue > 2) ? minValue-2 : 1;
+                    maxValue=maxValue-2;
+                }
+            
+        }
+        NSMutableIndexSet *newPageSet = [NSMutableIndexSet new];
+        
+        NSMutableDictionary *unusedViews = [contentViews mutableCopy];
+        
+        CGRect viewRect = CGRectZero; viewRect.size = theScrollView.bounds.size;
+
+        for (NSInteger number = minValue; number <= maxValue; number=number+2)
+        {
+            NSString *key = [NSString stringWithFormat:@"%d-L",number]; // # key
+            NSLog(@"%@",key);
+            ReaderContentView *contentView = [contentViews objectForKey:key];
+               
+			if (contentView == nil) // Create a brand new document content view
+			{
+				NSURL *fileURL = document.fileURL; NSString *phrase = document.password; // Document properties
+                
+				contentView = [[ReaderContentView alloc] initWithFrameLandscape:viewRect fileURL:fileURL page:number password:phrase];
+                
+				[theScrollView addSubview:contentView]; [contentViews setObject:contentView forKey:key];
+                
+				contentView.message = self; [newPageSet addIndex:number];
+			}
+			else // Reposition the existing content view
+			{
+				contentView.frame = viewRect; [contentView zoomReset];
+                
+				[unusedViews removeObjectForKey:key];
+			}
+
+            
+            viewRect.origin.x += viewRect.size.width;
+        }
+        [unusedViews enumerateKeysAndObjectsUsingBlock: // Remove unused views
+           ^(id key, id object, BOOL *stop)
+           {
+               [contentViews removeObjectForKey:key];
+               
+               ReaderContentView *contentView = object;
+               
+               [contentView removeFromSuperview];
+           }
+           ];
+        
+  	unusedViews = nil; // Release unused views
+        
+        CGFloat viewWidthX1 = viewRect.size.width;
+        CGFloat viewWidthX2 = (viewWidthX1 * 2.0f);
+        
+        CGPoint contentOffset = CGPointZero;
+        
+        if (maxPage >= PAGING_VIEWS)
+        {
+            if (page == maxPage)
+                contentOffset.x = viewWidthX2;
+            else
+                if (page != minPage)
+                    contentOffset.x = viewWidthX1;
+        }
+        else
+            if (page == (PAGING_VIEWS - 1))
+                contentOffset.x = viewWidthX1;
+        
+        if (CGPointEqualToPoint(theScrollView.contentOffset, contentOffset) == false)
+        {
+            theScrollView.contentOffset = contentOffset; // Update content offset
+        }
+        
+        if ([document.pageNumber integerValue] != page) // Only if different
+        {
+            document.pageNumber = [NSNumber numberWithInteger:page]; // Update page number
+        }
+        
+        NSURL *fileURL = document.fileURL; NSString *phrase = document.password; NSString *guid = document.guid;
+        
+        if ([newPageSet containsIndex:page] == YES) // Preview visible page first
+        {
+            NSString *key =  [NSString stringWithFormat:@"%d-L",page]; // # key
+            
+            ReaderContentView *targetView = [contentViews objectForKey:key];
+            
+            [targetView showPageThumb:fileURL page:page password:phrase guid:guid];
+            
+            [newPageSet removeIndex:page]; // Remove visible page from set
+        }
+        
+        [newPageSet enumerateIndexesWithOptions:NSEnumerationReverse usingBlock: // Show previews
+         ^(NSUInteger number, BOOL *stop)
+         {
+             NSString *key =  [NSString stringWithFormat:@"%d-L",page];// # key
+             
+             ReaderContentView *targetView = [contentViews objectForKey:key];
+             
+             [targetView showPageThumb:fileURL page:number password:phrase guid:guid];
+         }
+         ];
+ newPageSet = nil; // Release new page set
+        
+        [mainPagebar updatePagebar]; // Update the pagebar display
+        
+        [self updateToolbarBookmarkIcon]; // Update bookmark
+        
+        currentPage = page;
+        NSLog(@"current page is %d",currentPage);
+    }
+    
+
+    
+    
+    
+    
+
+
+
+    else{
+    
+	
 		NSInteger minValue; NSInteger maxValue;
 		NSInteger maxPage = [document.pageCount integerValue];
 		NSInteger minPage = 1;
@@ -265,6 +426,7 @@
 
 		currentPage = page; // Track current page number
 	}
+    
 }
 
 - (void)showDocument:(id)object
@@ -451,7 +613,7 @@
 	if (isVisible == NO) return; // iOS present modal bodge
 
 	[self updateScrollViewContentViews]; // Update content views
-
+[self showDocumentPage:currentPage];
 	lastAppearSize = CGSizeZero; // Reset view size tracking
 }
 
@@ -662,10 +824,18 @@
 		if (CGRectContainsPoint(zoomArea, point)) // Double tap is in the zoom area
 		{
 			NSInteger page = [document.pageNumber integerValue]; // Current page #
-
-			NSNumber *key = [NSNumber numberWithInteger:page]; // Page number key
-
-			ReaderContentView *targetView = [contentViews objectForKey:key];
+            ReaderContentView *targetView;
+            UIInterfaceOrientation orientation= [[UIApplication sharedApplication] statusBarOrientation];
+            if(UIInterfaceOrientationIsLandscape(orientation))
+            {
+                NSString *key = [NSString stringWithFormat:@"%d-L",page];
+                targetView = [contentViews objectForKey:key];
+                
+            }
+            else{
+                NSNumber *key = [NSNumber numberWithInteger:page];
+                targetView = [contentViews objectForKey:key];// Page number key
+            }
 
 			switch (recognizer.numberOfTouchesRequired) // Touches count
 			{

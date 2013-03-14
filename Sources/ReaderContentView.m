@@ -33,8 +33,9 @@
 @implementation ReaderContentView
 {
 	ReaderContentPage *theContentView;
-
+    ReaderContentPage *theContentView1;
 	ReaderContentThumb *theThumbView;
+    ReaderContentThumb *theThumbView1;
 
 	UIView *theContainerView;
 
@@ -64,11 +65,15 @@ static void *ReaderContentViewContext = &ReaderContentViewContext;
 
 static inline CGFloat ZoomScaleThatFits(CGSize target, CGSize source)
 {
-	CGFloat w_scale = (target.width / source.width);
-
-	CGFloat h_scale = (target.height / source.height);
-
-	return ((w_scale < h_scale) ? w_scale : h_scale);
+	CGFloat w_scale; UIInterfaceOrientation orientation= [[UIApplication sharedApplication] statusBarOrientation];
+    
+    if(UIInterfaceOrientationIsLandscape(orientation)){
+        w_scale= ((target.width/2) / source.width);
+    }
+    else{
+        w_scale= (target.width / source.width);
+    }
+    return w_scale;
 }
 
 #pragma mark ReaderContentView instance methods
@@ -85,6 +90,77 @@ static inline CGFloat ZoomScaleThatFits(CGSize target, CGSize source)
 
 	zoomAmount = ((self.maximumZoomScale - self.minimumZoomScale) / ZOOM_LEVELS);
 }
+
+- (id)initWithFrameLandscape:(CGRect)frame fileURL:(NSURL *)fileURL page:(NSUInteger)page password:(NSString *)phrase
+{
+	if ((self = [super initWithFrame:frame]))
+	{
+		self.scrollsToTop = NO;
+		self.delaysContentTouches = NO;
+		self.showsVerticalScrollIndicator = NO;
+		self.showsHorizontalScrollIndicator = NO;
+		self.contentMode = UIViewContentModeRedraw;
+		self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+		self.backgroundColor = [UIColor clearColor];
+		self.userInteractionEnabled = YES;
+		self.autoresizesSubviews = NO;
+		self.bouncesZoom = YES;
+		self.delegate = self;
+        
+		theContentView = [[ReaderContentPage alloc] initWithURL:fileURL page:page password:phrase];
+            theContentView.frame=CGRectMake(theContentView.frame.origin.x, theContentView.frame.origin.y,theContentView.frame.size.width/2, theContentView.frame.size.height/2);
+		if (theContentView != nil) // Must have a valid and initialized content view
+		{
+             theContentView1=[[ReaderContentPage alloc]initWithURL:fileURL page:page+1 password:phrase];
+               theContentView1.frame=CGRectMake(theContentView.frame.size.width, theContentView.frame.origin.y, theContentView.frame.size.width, theContentView.frame.size.height);
+			theContainerView = [[UIView alloc] initWithFrame:CGRectMake(theContentView.frame.origin.x, theContentView.frame.origin.y, theContentView.frame.size.width*2, theContentView.frame.size.height)];
+            
+			theContainerView.autoresizesSubviews = NO;
+			theContainerView.userInteractionEnabled = NO;
+			theContainerView.contentMode = UIViewContentModeRedraw;
+			theContainerView.autoresizingMask = UIViewAutoresizingNone;
+			theContainerView.backgroundColor = [UIColor whiteColor];
+            
+#if (READER_SHOW_SHADOWS == TRUE) // Option
+            
+			theContainerView.layer.shadowOffset = CGSizeMake(0.0f, 0.0f);
+			theContainerView.layer.shadowRadius = 4.0f; theContainerView.layer.shadowOpacity = 1.0f;
+			theContainerView.layer.shadowPath = [UIBezierPath bezierPathWithRect:theContainerView.bounds].CGPath;
+            
+#endif // end of READER_SHOW_SHADOWS Option
+            
+			self.contentSize = theContentView.bounds.size; // Content size same as view size
+			self.contentOffset = CGPointMake((0.0f - CONTENT_INSET), (0.0f - CONTENT_INSET)); // Offset
+			self.contentInset = UIEdgeInsetsMake(CONTENT_INSET, CONTENT_INSET, CONTENT_INSET, CONTENT_INSET);
+            
+#if (READER_ENABLE_PREVIEW == TRUE) // Option
+            
+			theThumbView = [[ReaderContentThumb alloc] initWithFrame:theContentView.bounds]; // Page thumb view
+            theThumbView1=[[ReaderContentThumb alloc] initWithFrame:theContentView1.bounds];
+			[theContainerView addSubview:theThumbView]; // Add the thumb view to the container view
+            [theContainerView addSubview:theThumbView1];
+#endif // end of READER_ENABLE_PREVIEW Option
+            
+			[theContainerView addSubview:theContentView];
+            	[theContainerView addSubview:theContentView1];// Add the content view to the container view
+            
+			[self addSubview:theContainerView]; // Add the container view to the scroll view
+            
+			[self updateMinimumMaximumZoom]; // Update the minimum and maximum zoom scales
+            
+			self.zoomScale = self.minimumZoomScale; // Set zoom to fit page content
+		}
+        
+		[self addObserver:self forKeyPath:@"frame" options:0 context:ReaderContentViewContext];
+        
+		self.tag = page; // Tag the view with the page number
+	}
+    
+	return self;
+}
+
+
+
 
 - (id)initWithFrame:(CGRect)frame fileURL:(NSURL *)fileURL page:(NSUInteger)page password:(NSString *)phrase
 {

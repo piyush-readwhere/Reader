@@ -44,7 +44,7 @@
 @property (nonatomic, unsafe_unretained, readwrite) id <ReaderContentViewDelegate> message;
 
 - (id)initWithFrame:(CGRect)frame fileURL:(NSURL *)fileURL page:(NSUInteger)page password:(NSString *)phrase;
-
+- (id)initWithFrameLandscape:(CGRect)frame fileURL:(NSURL *)fileURL page:(NSUInteger)page password:(NSString *)phrase;
 - (void)showPageThumb:(NSURL *)fileURL page:(NSInteger)page password:(NSString *)phrase guid:(NSString *)guid;
 
 - (id)processSingleTap:(UITapGestureRecognizer *)recognizer;
